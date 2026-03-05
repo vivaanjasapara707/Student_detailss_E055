@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Student Record System</title>
+
+<style>
+body{
+font-family: Arial;
+background:#f0f0f0;
+text-align:center;
+}
+
+.container{
+background:white;
+width:400px;
+margin:auto;
+padding:30px;
+border-radius:10px;
+box-shadow:0px 0px 10px gray;
+}
+
+input{
+width:90%;
+padding:10px;
+margin:5px;
+}
+
+button{
+padding:10px;
+width:95%;
+background:#007BFF;
+color:white;
+border:none;
+margin-top:10px;
+cursor:pointer;
+}
+
+#result{
+margin-top:20px;
+font-weight:bold;
+}
+</style>
+
+</head>
+
+<body>
+
+<h2>Student Database</h2>
+
+<div class="container">
+
+<h3>Add Student</h3>
+
+<input id="name" placeholder="Name">
+<input id="sapid" placeholder="SAP ID">
+<input id="marks" placeholder="Marks">
+<input id="age" placeholder="Age">
+
+<button onclick="addStudent()">Add Student</button>
+
+<hr>
+
+<h3>Search Student</h3>
+
+<input id="search" placeholder="Enter Name or SAP ID">
+<button onclick="searchStudent()">Search</button>
+
+<p id="result"></p>
+
+</div>
+
+<script>
+
+async function addStudent(){
+
+let data = {
+name: document.getElementById("name").value,
+sapid: document.getElementById("sapid").value,
+marks: document.getElementById("marks").value,
+age: document.getElementById("age").value
+}
+
+await fetch("/add_student",{
+method:"POST",
+headers:{"Content-Type":"application/json"},
+body:JSON.stringify(data)
+})
+
+alert("Student Added")
+
+}
+
+async function searchStudent(){
+
+let query = document.getElementById("search").value
+
+let response = await fetch(`/search_student?query=${query}`)
+
+let data = await response.json()
+
+document.getElementById("result").innerHTML =
+JSON.stringify(data)
+
+}
+
+</script>
+
+</body>
+</html>
