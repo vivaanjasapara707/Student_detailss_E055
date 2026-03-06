@@ -1,40 +1,159 @@
-from flask import Flask, request, jsonify, send_file
+from flask import Flask, render_template, request, redirect, session
+import sqlite3
+import pandas as pd
+import os
 
 app = Flask(__name__)
+app.secret_key = "secret123"
 
-students = []
+
+def init_db():
+
+    conn = sqlite3.connect("players.db")
+    cursor = conn.cursor()
+
+    # Create players table
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS players(
+        id INTEGER PRIMARY KEY,
+        name TEXT,
+        country TEXT,
+        role TEXT,
+        base_price INTEGER,
+        current_bid INTEGER
+    )
+    """)
+
+    # Create users table
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS users(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        username TEXT,
+        password TEXT
+    )
+    """)
+
+    # FIXED PATH FOR RENDER
+    file_path = os.path.join(os.path.dirname(__file__), "players.xlsx")
+    df = pd.read_excel(file_path)
+
+    df.columns = df.columns.str.strip().str.lower()
+
+    for _, row in df.iterrows():
+
+        cursor.execute(
+        "INSERT OR IGNORE INTO players VALUES (?,?,?,?,?,?)",
+        (
+            int(row['id']),
+            row['name'],
+            row['country'],
+            row['role'],
+            int(row['base_price']),
+            int(row['current_bid'])
+        )
+        )
+
+    conn.commit()
+    conn.close()
+
 
 @app.route("/")
 def home():
-    return send_file("app.html")
+
+    if "user" not in session:
+        return redirect("/login")
+
+    conn = sqlite3.connect("players.db")
+    cursor = conn.cursor()
+
+    players = cursor.execute("SELECT * FROM players").fetchall()
+
+    conn.close()
+
+    return render_template("index.html", players=players, user=session["user"])
 
 
-@app.route("/add_student", methods=["POST"])
-def add_student():
-    data = request.json
+@app.route("/login", methods=["GET","POST"])
+def login():
 
-    student = {
-        "name": data.get("name"),
-        "sapid": data.get("sapid"),
-        "marks": data.get("marks"),
-        "age": data.get("age")
-    }
+    if request.method == "POST":
 
-    students.append(student)
+        username = request.form["username"]
+        password = request.form["password"]
 
-    return jsonify({"message": "Student added successfully"})
+        conn = sqlite3.connect("players.db")
+        cursor = conn.cursor()
+
+        user = cursor.execute(
+        "SELECT * FROM users WHERE username=? AND password=?",
+        (username,password)
+        ).fetchone()
+
+        conn.close()
+
+        if user:
+            session["user"] = username
+            return redirect("/")
+
+    return render_template("login.html")
 
 
-@app.route("/search_student")
-def search_student():
-    query = request.args.get("query")
+@app.route("/register", methods=["GET","POST"])
+def register():
 
-    for student in students:
-        if student["name"] == query or student["sapid"] == query:
-            return jsonify(student)
+    if request.method == "POST":
 
-    return jsonify({"message": "Student not found"})
+        username = request.form["username"]
+        password = request.form["password"]
+
+        conn = sqlite3.connect("players.db")
+        cursor = conn.cursor()
+
+        cursor.execute(
+        "INSERT INTO users(username,password) VALUES (?,?)",
+        (username,password)
+        )
+
+        conn.commit()
+        conn.close()
+
+        return redirect("/login")
+
+    return render_template("register.html")
+
+
+@app.route("/logout")
+def logout():
+
+    session.pop("user", None)
+
+    return redirect("/login")
+
+
+@app.route("/bid/<int:id>", methods=["POST"])
+def bid(id):
+
+    bid = int(request.form["bid"])
+
+    conn = sqlite3.connect("players.db")
+    cursor = conn.cursor()
+
+    cursor.execute("SELECT current_bid FROM players WHERE id=?", (id,))
+    current = cursor.fetchone()[0]
+
+    if bid > current:
+
+        cursor.execute(
+        "UPDATE players SET current_bid=? WHERE id=?",
+        (bid,id)
+        )
+
+    conn.commit()
+    conn.close()
+
+    return redirect("/")
 
 
 if __name__ == "__main__":
-    app.run(debug=True, port=5000)
+    init_db()
+    app.run(debug=True)
